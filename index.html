@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Google Sheet Links</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <main class="app-shell">
@@ -54,29 +55,20 @@
     </main>
 
     <section class="modal-backdrop" id="loginModal" hidden>
-      <form class="login-card" id="loginForm" action="/" method="post" autocomplete="on">
+      <section class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
         <div>
           <p class="eyebrow">Private view</p>
-          <h2>Login</h2>
+          <h2 id="loginTitle">Sign in with Google</h2>
         </div>
 
-        <label class="login-field">
-          <span>Username</span>
-          <input id="usernameInput" name="username" type="text" autocomplete="username" required />
-        </label>
-
-        <label class="login-field">
-          <span>Password</span>
-          <input id="passwordInput" name="password" type="password" autocomplete="current-password" required />
-        </label>
+        <div class="google-signin-slot" id="googleSignInButton"></div>
 
         <p class="login-message" id="loginMessage" hidden></p>
 
         <div class="login-actions">
           <button class="text-button" id="cancelLoginButton" type="button">Cancel</button>
-          <button class="primary-button" type="submit">Login</button>
         </div>
-      </form>
+      </section>
     </section>
 
     <script src="app.js"></script>

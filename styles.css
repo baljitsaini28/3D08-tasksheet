@@ -218,14 +218,6 @@ select:focus {
   line-height: 1.1;
 }
 
-.login-field {
-  display: grid;
-  gap: 7px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .login-message {
   margin: 0;
   border: 1px solid var(--border);
@@ -245,6 +237,10 @@ select:focus {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.google-signin-slot {
+  min-height: 44px;
 }
 
 .summary-grid {

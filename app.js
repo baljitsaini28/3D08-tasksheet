@@ -1,8 +1,8 @@
 const CONFIG = {
   masterSheetUrl: "https://docs.google.com/spreadsheets/d/1zLxfExqhz_6kjWytfqa0P8SpCBt2AblRW5v6iaTQ36c/edit?gid=0#gid=0",
-  allowedUsername: "baljitsaini28",
-  userDetailsSheetName: "UserDetails",
-  myTaskSheetName: "MyTask",
+  appScriptUrl: "https://script.google.com/macros/s/AKfycbwTaMpGOS_6Oh_91DD-k-Uj6827QyhF19zv0eiV0FEZuWzlQxVsWR18hmqb-DUE6Sjv/exec",
+  googleClientId: "72971555256-0loioie36uj3ibhpae1e3a76qa0p6qof.apps.googleusercontent.com",
+  allowedEmail: "baljitsaini28@gmail.com",
   refreshEveryMinutes: 5,
 };
 
@@ -44,6 +44,7 @@ const state = {
   statusFilter: "all",
   currentView: "portal",
   currentUser: null,
+  googleIdToken: "",
 };
 
 const elements = {
@@ -59,9 +60,7 @@ const elements = {
   messagePanel: document.querySelector("#messagePanel"),
   taskGrid: document.querySelector("#taskGrid"),
   loginModal: document.querySelector("#loginModal"),
-  loginForm: document.querySelector("#loginForm"),
-  usernameInput: document.querySelector("#usernameInput"),
-  passwordInput: document.querySelector("#passwordInput"),
+  googleSignInButton: document.querySelector("#googleSignInButton"),
   loginMessage: document.querySelector("#loginMessage"),
   cancelLoginButton: document.querySelector("#cancelLoginButton"),
 };
@@ -209,6 +208,54 @@ function rowToValues(row) {
   });
 }
 
+function isAppScriptConfigured() {
+  return CONFIG.appScriptUrl && !CONFIG.appScriptUrl.includes("PASTE_APPS_SCRIPT_WEB_APP_URL_HERE");
+}
+
+function loadAppScriptJsonp(params) {
+  if (!isAppScriptConfigured()) {
+    return Promise.reject(new Error("Add your Apps Script Web App URL in app.js."));
+  }
+
+  return new Promise((resolve, reject) => {
+    const callbackName = `handleTaskApi_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("The Apps Script request took too long to respond."));
+    }, 20000);
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+    }
+
+    window[callbackName] = (payload) => {
+      cleanup();
+      if (!payload || payload.ok === false) {
+        reject(new Error((payload && payload.error) || "The Apps Script request failed."));
+        return;
+      }
+      resolve(payload.rows || []);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("The Apps Script endpoint could not be loaded."));
+    };
+
+    const query = new URLSearchParams({
+      ...params,
+      callback: callbackName,
+      _: Date.now().toString(),
+    });
+    const separator = CONFIG.appScriptUrl.includes("?") ? "&" : "?";
+    script.src = `${CONFIG.appScriptUrl}${separator}${query.toString()}`;
+    document.head.appendChild(script);
+  });
+}
+
 function toTask(row) {
   const status = getValue(row, ["Status"]) || "Active";
   return {
@@ -220,14 +267,6 @@ function toTask(row) {
     deadline: getValue(row, ["Deadline", "Due Date"]),
     status,
     isExpired: status.toLowerCase() === "expired",
-  };
-}
-
-function toUser(row) {
-  return {
-    name: getValue(row, ["Name", "Full Name", "User Name"]) || getValue(row, ["Username", "User ID"]),
-    username: getValue(row, ["Username", "User ID", "Login ID", "Login"]),
-    password: getValue(row, ["Password", "Passcode", "Pass"]),
   };
 }
 
@@ -413,9 +452,9 @@ async function loadData() {
       return;
     }
 
-    state.rows = await loadTaskRows();
+    state.rows = await loadPublicRows();
     if (state.currentUser) {
-      state.myTaskRows = await loadTaskRows(CONFIG.myTaskSheetName);
+      state.myTaskRows = await loadMyTaskRows(state.googleIdToken);
     }
     render();
   } catch (error) {
@@ -426,23 +465,24 @@ async function loadData() {
   }
 }
 
-async function loadTaskRows(sheetName) {
+async function loadPublicRows() {
+  if (isAppScriptConfigured()) {
+    const rows = await loadAppScriptJsonp({ action: "links" });
+    return rows.map(toTask).filter((task) => task.name || task.link);
+  }
+
   const rows = CONFIG.masterSheetUrl.includes("/spreadsheets/d/")
-    ? await loadGoogleSheetJsonp(CONFIG.masterSheetUrl, { sheetName })
+    ? await loadGoogleSheetJsonp(CONFIG.masterSheetUrl)
     : parseCsv(await fetchCsv(CONFIG.masterSheetUrl));
   return rows.map(toTask).filter((task) => task.name || task.link);
 }
 
-async function loadUsers() {
-  if (!CONFIG.masterSheetUrl.includes("/spreadsheets/d/")) {
-    throw new Error("Login requires the Master Sheet to be a Google Sheets URL.");
-  }
-
-  const rows = await loadGoogleSheetJsonp(CONFIG.masterSheetUrl, {
-    sheetName: CONFIG.userDetailsSheetName,
+async function loadMyTaskRows(idToken) {
+  const rows = await loadAppScriptJsonp({
+    action: "myTasks",
+    idToken,
   });
-
-  return rows.map(toUser).filter((user) => user.username && user.password);
+  return rows.map(toTask).filter((task) => task.name || task.link);
 }
 
 async function fetchCsv(url) {
@@ -498,7 +538,7 @@ elements.viewTabs.addEventListener("click", (event) => {
 elements.loginButton.addEventListener("click", () => {
   elements.loginModal.hidden = false;
   elements.loginMessage.hidden = true;
-  elements.usernameInput.focus();
+  initializeGoogleSignIn();
 });
 
 elements.cancelLoginButton.addEventListener("click", () => {
@@ -511,40 +551,12 @@ elements.loginModal.addEventListener("click", (event) => {
   }
 });
 
-elements.loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  setLoginMessage("Checking login...");
-
-  try {
-    const username = elements.usernameInput.value.trim();
-    const password = elements.passwordInput.value;
-    const users = await loadUsers();
-    const user = users.find((candidate) => {
-      return candidate.username === CONFIG.allowedUsername && candidate.username === username && candidate.password === password;
-    });
-
-    if (!user) {
-      setLoginMessage("Invalid username or password.", "error");
-      return;
-    }
-
-    state.currentUser = {
-      name: user.name || "Baljit Singh",
-      username: user.username,
-    };
-    state.myTaskRows = await loadTaskRows(CONFIG.myTaskSheetName);
-    state.currentView = "myTasks";
-    resetFilters();
-    elements.loginModal.hidden = true;
-    render();
-  } catch (error) {
-    console.error(error);
-    setLoginMessage(`${error.message} Check the UserDetails and MyTask subsheets.`, "error");
-  }
-});
-
 elements.logoutButton.addEventListener("click", () => {
+  if (window.google && window.google.accounts && window.google.accounts.id) {
+    window.google.accounts.id.disableAutoSelect();
+  }
   state.currentUser = null;
+  state.googleIdToken = "";
   state.myTaskRows = [];
   state.currentView = "portal";
   resetFilters();
@@ -563,4 +575,80 @@ function setLoginMessage(message, type = "info") {
   elements.loginMessage.textContent = message;
   elements.loginMessage.className = `login-message ${type === "error" ? "error" : ""}`;
   elements.loginMessage.hidden = !message;
+}
+
+function initializeGoogleSignIn() {
+  if (!isAppScriptConfigured()) {
+    setLoginMessage("Add your Apps Script Web App URL in app.js before opening My Tasks.", "error");
+    return;
+  }
+
+  if (!CONFIG.googleClientId || CONFIG.googleClientId.includes("PASTE_GOOGLE_CLIENT_ID_HERE")) {
+    setLoginMessage("Add your Google OAuth Client ID in app.js before using Google Sign-In.", "error");
+    return;
+  }
+
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+    setLoginMessage("Google Sign-In is still loading. Try again in a moment.");
+    return;
+  }
+
+  elements.googleSignInButton.innerHTML = "";
+  window.google.accounts.id.initialize({
+    client_id: CONFIG.googleClientId,
+    callback: handleGoogleCredential,
+    auto_select: false,
+  });
+  window.google.accounts.id.renderButton(elements.googleSignInButton, {
+    theme: "outline",
+    size: "large",
+    type: "standard",
+    text: "signin_with",
+    shape: "rectangular",
+    width: 280,
+  });
+}
+
+async function handleGoogleCredential(response) {
+  setLoginMessage("Checking Google account...");
+
+  try {
+    const profile = decodeJwtPayload(response.credential);
+    const email = String(profile.email || "").toLowerCase();
+
+    if (email !== CONFIG.allowedEmail.toLowerCase()) {
+      setLoginMessage(`This portal is restricted to ${CONFIG.allowedEmail}.`, "error");
+      return;
+    }
+
+    state.currentUser = {
+      name: profile.name || "Baljit Singh",
+      email,
+    };
+    state.googleIdToken = response.credential;
+    state.myTaskRows = await loadMyTaskRows(response.credential);
+    state.currentView = "myTasks";
+    resetFilters();
+    elements.loginModal.hidden = true;
+    render();
+  } catch (error) {
+    console.error(error);
+    setLoginMessage(`${error.message} Try signing in again.`, "error");
+  }
+}
+
+function decodeJwtPayload(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length < 2) {
+    throw new Error("Google did not return a valid sign-in token.");
+  }
+
+  const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+  const decoded = atob(payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), "="));
+  const json = decodeURIComponent(
+    Array.from(decoded)
+      .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
+      .join("")
+  );
+  return JSON.parse(json);
 }
