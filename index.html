@@ -54,7 +54,7 @@
     </main>
 
     <section class="modal-backdrop" id="loginModal" hidden>
-      <form class="login-card" id="loginForm">
+      <form class="login-card" id="loginForm" action="/" method="post" autocomplete="on">
         <div>
           <p class="eyebrow">Private view</p>
           <h2>Login</h2>
@@ -62,12 +62,12 @@
 
         <label class="login-field">
           <span>Username</span>
-          <input id="usernameInput" type="text" autocomplete="username" required />
+          <input id="usernameInput" name="username" type="text" autocomplete="username" required />
         </label>
 
         <label class="login-field">
           <span>Password</span>
-          <input id="passwordInput" type="password" autocomplete="current-password" required />
+          <input id="passwordInput" name="password" type="password" autocomplete="current-password" required />
         </label>
 
         <p class="login-message" id="loginMessage" hidden></p>

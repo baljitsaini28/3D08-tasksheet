@@ -498,7 +498,6 @@ elements.viewTabs.addEventListener("click", (event) => {
 elements.loginButton.addEventListener("click", () => {
   elements.loginModal.hidden = false;
   elements.loginMessage.hidden = true;
-  elements.loginForm.reset();
   elements.usernameInput.focus();
 });
 
