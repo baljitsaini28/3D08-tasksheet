@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Google Sheet Links</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Shared workspace</p>
+          <h1>Google Sheet Links</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="user-badge" id="userBadge" hidden></span>
+          <button class="text-button" id="loginButton" type="button">Login</button>
+          <button class="text-button" id="logoutButton" type="button" hidden>Logout</button>
+          <button class="icon-button" id="refreshButton" type="button" title="Refresh data" aria-label="Refresh data">
+            &#8635;
+          </button>
+        </div>
+      </header>
+
+      <nav class="view-tabs" id="viewTabs" aria-label="Portal views" hidden>
+        <button class="view-tab" type="button" data-view="portal" aria-selected="true">Google Sheet Links</button>
+        <button class="view-tab" type="button" data-view="myTasks" aria-selected="false">My Tasks</button>
+      </nav>
+
+      <section class="toolbar" aria-label="Task controls">
+        <label class="search-field">
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="Task, description, category..." autocomplete="off" />
+        </label>
+
+        <label class="select-field">
+          <span>Status</span>
+          <select id="statusFilter">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="expired">Expired</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="summary-grid" id="summaryGrid" aria-label="Task summary"></section>
+
+      <nav class="tabs" id="categoryTabs" aria-label="Categories"></nav>
+
+      <section class="status-panel" id="messagePanel" hidden></section>
+
+      <section class="task-grid" id="taskGrid" aria-live="polite"></section>
+    </main>
+
+    <section class="modal-backdrop" id="loginModal" hidden>
+      <form class="login-card" id="loginForm">
+        <div>
+          <p class="eyebrow">Private view</p>
+          <h2>Login</h2>
+        </div>
+
+        <label class="login-field">
+          <span>Username</span>
+          <input id="usernameInput" type="text" autocomplete="username" required />
+        </label>
+
+        <label class="login-field">
+          <span>Password</span>
+          <input id="passwordInput" type="password" autocomplete="current-password" required />
+        </label>
+
+        <p class="login-message" id="loginMessage" hidden></p>
+
+        <div class="login-actions">
+          <button class="text-button" id="cancelLoginButton" type="button">Cancel</button>
+          <button class="primary-button" type="submit">Login</button>
+        </div>
+      </form>
+    </section>
+
+    <script src="app.js"></script>
+  </body>
+</html>
